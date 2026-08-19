@@ -47,7 +47,7 @@ router.post('/:sessionId/onboard', (req, res) => {
 
   const updated = {
     ...existing,
-    aesthetics,
+    aesthetics: [...new Set([...(existing.aesthetics || []), ...aesthetics])],
     mode,
     size,
     priceRange: {

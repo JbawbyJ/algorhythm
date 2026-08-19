@@ -1,8 +1,9 @@
 import { Router } from 'express'
-import { searchEbay } from '../services/ebayService.js'
+import { searchEbay, isEbayConfigured } from '../services/ebayService.js'
 import { normalizeEbayItem } from '../utils/normalizer.js'
 import { rankListingsForProfile, DEFAULT_PROFILE } from '../utils/tasteScorer.js'
 import { buildSearchQueriesForProfile } from '../data/brands.js'
+import { getLocalCatalog } from '../data/localCatalog.js'
 
 const router = Router()
 
@@ -39,25 +40,32 @@ router.post('/', async (req, res, next) => {
           { query: "Arc'teryx Veilance", aesthetic: 'Gorpcore' },
         ]
 
-    // Fetch from eBay in parallel
-    const ebayResults = await Promise.allSettled(
-      activeQueries.map(q =>
-        searchEbay({
-          query:    q.query,
-          limit:    10,
-          priceMin: profile.priceRange?.min || null,
-          priceMax: profile.priceRange?.max || null,
-          condition: mapConditionToEbay(profile.conditionTolerance)
-        })
-      )
-    )
+    // Fetch from eBay in parallel when credentials are present.
+    // Always merge the local catalog so the core loop works offline.
+    const allItems = [...getLocalCatalog()]
+    const sources = ['local']
 
-    // Collect + normalize successful results
-    const allItems = []
-    for (const result of ebayResults) {
-      if (result.status === 'fulfilled' && result.value.itemSummaries) {
-        allItems.push(...result.value.itemSummaries.map(normalizeEbayItem))
+    if (isEbayConfigured()) {
+      const ebayResults = await Promise.allSettled(
+        activeQueries.map(q =>
+          searchEbay({
+            query:    q.query,
+            limit:    10,
+            priceMin: profile.priceRange?.min || null,
+            priceMax: profile.priceRange?.max || null,
+            condition: mapConditionToEbay(profile.conditionTolerance)
+          })
+        )
+      )
+
+      let ebayCount = 0
+      for (const result of ebayResults) {
+        if (result.status === 'fulfilled' && result.value.itemSummaries) {
+          allItems.push(...result.value.itemSummaries.map(normalizeEbayItem))
+          ebayCount += result.value.itemSummaries.length
+        }
       }
+      if (ebayCount > 0) sources.push('ebay')
     }
 
     // Deduplicate by id
@@ -81,6 +89,7 @@ router.post('/', async (req, res, next) => {
       total:       ranked.length,
       totalPages:  Math.ceil(ranked.length / pageSize),
       feedDepth:   profile.feedDepth || 0,
+      sources,
       items:       paginated
     })
 

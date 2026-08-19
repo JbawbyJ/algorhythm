@@ -4,9 +4,10 @@ import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
 import 'dotenv/config'
 
-import feedRouter   from './routes/feed.js'
+import feedRouter    from './routes/feed.js'
 import profileRouter from './routes/profile.js'
-import ebayRouter   from './routes/ebay.js'
+import ebayRouter    from './routes/ebay.js'
+import compareRouter from './routes/compare.js'
 
 const app  = express()
 const PORT = process.env.PORT || 3001
@@ -28,13 +29,17 @@ app.use('/api/', limiter)
 app.use('/api/feed',    feedRouter)
 app.use('/api/profile', profileRouter)
 app.use('/api/ebay',    ebayRouter)
+app.use('/api/compare', compareRouter)
 
 // ── Health check ──
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     env: process.env.NODE_ENV,
-    ebay: process.env.EBAY_CLIENT_ID !== 'your_ebay_client_id_here' ? 'configured' : 'not configured',
+    ebay: process.env.EBAY_CLIENT_ID && process.env.EBAY_CLIENT_ID !== 'your_ebay_client_id_here'
+      ? 'configured'
+      : 'not configured',
+    catalog: 'local',
     timestamp: new Date().toISOString()
   })
 })

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfile } from '../context/ProfileContext'
-import { ebayAPI } from '../utils/api'
+import { ebayAPI, feedAPI } from '../utils/api'
 import styles from './Onboard.module.css'
 
 const AESTHETICS = [
@@ -45,7 +45,7 @@ function shuffle(arr) {
 }
 
 export default function Onboard() {
-  const { onboard } = useProfile()
+  const { onboard, profile, updateProfile } = useProfile()
   const navigate    = useNavigate()
 
   const [step, setStep]             = useState(1)
@@ -96,6 +96,16 @@ export default function Onboard() {
   }
 
   async function handleSwipe(action) {
+    const listing = swipeItems[swipeIndex]
+    if (listing && profile) {
+      try {
+        const { profile: updated } = await feedAPI.swipe(profile, listing, action)
+        await updateProfile(updated)
+      } catch (err) {
+        console.error('Swipe error:', err)
+      }
+    }
+
     if (swipeIndex + 1 >= swipeItems.length) {
       await finalize()
     } else {

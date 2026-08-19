@@ -26,14 +26,14 @@ Download from https://nodejs.org — get the LTS version.
 
 ### 3. Configure environment
 ```bash
-cd server
+cd algorhythm_backend
 cp .env.example .env
-# Open .env and paste your eBay credentials
+# Open .env and paste your eBay credentials (optional for local catalog)
 ```
 
 ### 4. Install dependencies
 ```bash
-cd server
+cd algorhythm_backend
 npm install
 ```
 
@@ -55,10 +55,10 @@ curl http://localhost:3001/health
 # Test eBay search (once credentials are set)
 curl "http://localhost:3001/api/ebay/search?q=Acronym+jacket&limit=5"
 
-# Test feed with default profile
+# Ranked feed (uses the local catalog; eBay is merged when configured)
 curl -X POST http://localhost:3001/api/feed \
   -H "Content-Type: application/json" \
-  -d '{}'
+  -d '{"profile":{"aesthetics":["Gorpcore"],"priceRange":{"min":0,"max":500},"mode":"both"}}'
 ```
 
 ---
@@ -72,6 +72,8 @@ curl -X POST http://localhost:3001/api/feed \
 | GET    | `/api/ebay/item/:id` | Single item detail |
 | POST   | `/api/feed` | Ranked feed for a taste profile |
 | POST   | `/api/feed/swipe` | Record swipe, update profile |
+| POST   | `/api/compare` | Compare a listing against the catalog |
+| POST   | `/api/compare/search` | Compare by free-text query |
 | GET    | `/api/profile/:sessionId` | Get user profile |
 | PUT    | `/api/profile/:sessionId` | Save user profile |
 | POST   | `/api/profile/:sessionId/onboard` | Run L1 onboarding |
@@ -82,30 +84,31 @@ curl -X POST http://localhost:3001/api/feed \
 ## File Structure
 
 ```
-server/
+algorhythm_backend/
 ├── index.js              # Express app entry point
 ├── .env.example          # Env template — copy to .env
 ├── package.json
 ├── routes/
-│   ├── ebay.js           # eBay API endpoints
+│   ├── ebay.js           # eBay API endpoints (+ local fallback)
 │   ├── feed.js           # Feed aggregation + ranking
+│   ├── compare.js        # Price compare
 │   └── profile.js        # Taste profile management
 ├── services/
 │   └── ebayService.js    # eBay OAuth + Browse API calls
 ├── utils/
 │   ├── normalizer.js     # Converts any source → standard schema
-│   └── tasteScorer.js    # Taste match scoring engine
+│   ├── tasteScorer.js    # Taste match scoring engine
+│   └── priceCompare.js   # Compare grouping + deal score
 └── data/
-    └── brands.js         # Brand registry + aesthetic mappings
+    ├── brands.js         # Brand registry + aesthetic mappings
+    └── localCatalog.js   # Offline listings for the local core loop
 ```
 
 ---
 
 ## Next Steps (in order)
 
-- [ ] Get eBay credentials, test live search
+- [ ] Get eBay credentials, test live search (optional; local catalog already ranks)
 - [ ] Add Supabase for persistent profiles + auth
-- [ ] Wire frontend (React) to this backend
 - [ ] Add Yahoo Japan API
 - [ ] Add SSENSE affiliate feed
-- [ ] Build onboarding swipe flow

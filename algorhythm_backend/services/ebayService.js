@@ -18,11 +18,25 @@ const BASE   = ENDPOINTS[ENV]
 // ── Token cache — eBay tokens last 2 hours, we cache them ──
 let tokenCache = { token: null, expiresAt: 0 }
 
+export function isEbayConfigured() {
+  const id = process.env.EBAY_CLIENT_ID
+  const secret = process.env.EBAY_CLIENT_SECRET
+  return Boolean(
+    id && secret &&
+    id !== 'your_ebay_client_id_here' &&
+    secret !== 'your_ebay_client_secret_here'
+  )
+}
+
 /**
  * Get (or refresh) an eBay OAuth client credentials token.
  * This is the Application token — no user login needed for Browse API.
  */
 export async function getEbayToken() {
+  if (!isEbayConfigured()) {
+    throw new Error('eBay API is not configured')
+  }
+
   const now = Date.now()
 
   // Return cached token if still valid (with 5 min buffer)

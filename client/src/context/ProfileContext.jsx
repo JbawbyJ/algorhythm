@@ -18,6 +18,7 @@ export function ProfileProvider({ children }) {
   const [sessionId]                 = useState(getSessionId)
   const [loading, setLoading]       = useState(true)
   const [isNewUser, setIsNewUser]   = useState(false)
+  const [error, setError]           = useState(null)
 
   // Load profile on mount
   useEffect(() => {
@@ -25,8 +26,12 @@ export function ProfileProvider({ children }) {
       .then(({ profile, isNew }) => {
         setProfile(profile)
         setIsNewUser(isNew)
+        setError(null)
       })
-      .catch(console.error)
+      .catch(err => {
+        console.error(err)
+        setError('Cannot reach the API. Start the backend on port 3001.')
+      })
       .finally(() => setLoading(false))
   }, [sessionId])
 
@@ -58,6 +63,7 @@ export function ProfileProvider({ children }) {
       sessionId,
       loading,
       isNewUser,
+      error,
       updateProfile,
       onboard,
       resetProfile,
