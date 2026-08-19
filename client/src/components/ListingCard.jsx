@@ -17,7 +17,7 @@ const CONDITION_LABELS = {
   unknown:  'Unknown',
 }
 
-export default function ListingCard({ listing, onSave, onCompare, onSwipe }) {
+export default function ListingCard({ listing, onSave, onCompare }) {
   const [saved, setSaved] = useState(false)
   const [imgError, setImgError] = useState(false)
 

@@ -47,6 +47,13 @@ test('swipe like adds brand and aesthetic to the profile', () => {
   assert.ok(updated.aesthetics.some(a => listing.aesthetics.includes(a)))
 })
 
+test('swipe works when the incoming profile omits vector and brands', () => {
+  const listing = getLocalCatalog().find(i => i.brand === 'Acronym')
+  const updated = applySwipeFeedback({ aesthetics: ['Gorpcore'] }, listing, 'like')
+  assert.ok(updated.brands.liked.includes('Acronym'))
+  assert.equal(typeof updated.vector.technical, 'number')
+})
+
 test('compare groups same-brand listings and returns market stats', () => {
   const catalog = getLocalCatalog()
   const source = catalog.find(i => i.brand === 'Nemen')

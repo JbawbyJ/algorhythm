@@ -185,6 +185,7 @@ export function applySwipeFeedback(profile, listing, action) {
   }
 
   // Nudge vector
+  updated.vector = { ...DEFAULT_PROFILE.vector, ...(updated.vector || {}) }
   const v = updated.vector
   if (listing.aesthetics?.includes('Dark Luxury'))  v.darkness    = clamp(v.darkness    + weight * 3, 0, 100)
   if (listing.aesthetics?.includes('Gorpcore'))     v.technical   = clamp(v.technical   + weight * 3, 0, 100)
