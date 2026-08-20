@@ -65,8 +65,8 @@ export function scoreListingForProfile(listing, profile = DEFAULT_PROFILE) {
 
   // ── 2. Brand match (25pts) ──
   const brand = (listing.brand || '').toLowerCase()
-  const liked   = profile.brands.liked.map(b => b.toLowerCase())
-  const blocked = profile.brands.blocked.map(b => b.toLowerCase())
+  const liked   = (profile.brands?.liked || []).map(b => b.toLowerCase())
+  const blocked = (profile.brands?.blocked || []).map(b => b.toLowerCase())
 
   if (blocked.some(b => brand.includes(b))) {
     // Blocked brand — hard zero, filtered out upstream but score it anyway
@@ -133,7 +133,7 @@ export function scoreListingForProfile(listing, profile = DEFAULT_PROFILE) {
  * Returns listings sorted by score descending.
  */
 export function rankListingsForProfile(listings, profile = DEFAULT_PROFILE) {
-  const blocked = profile.brands.blocked.map(b => b.toLowerCase())
+  const blocked = (profile.brands?.blocked || []).map(b => b.toLowerCase())
 
   return listings
     // Filter by mode
@@ -161,6 +161,10 @@ export function applySwipeFeedback(profile, listing, action) {
 
   // Update brand signals
   const brand = listing.brand
+  updated.brands = updated.brands || { liked: [], blocked: [] }
+  updated.brands.liked = updated.brands.liked || []
+  updated.brands.blocked = updated.brands.blocked || []
+
   if (action === 'dislike') {
     if (!updated.brands.blocked.includes(brand)) {
       // Don't auto-block on one dislike — track frequency in production
@@ -181,6 +185,7 @@ export function applySwipeFeedback(profile, listing, action) {
   }
 
   // Nudge vector
+  updated.vector = { ...DEFAULT_PROFILE.vector, ...(updated.vector || {}) }
   const v = updated.vector
   if (listing.aesthetics?.includes('Dark Luxury'))  v.darkness    = clamp(v.darkness    + weight * 3, 0, 100)
   if (listing.aesthetics?.includes('Gorpcore'))     v.technical   = clamp(v.technical   + weight * 3, 0, 100)

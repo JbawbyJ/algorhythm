@@ -9,7 +9,7 @@ const MODES = ['Both', 'Retail', 'Resale']
 const FREE_PAGE_LIMIT = 5
 
 export default function Feed() {
-  const { profile, updateProfile, isNewUser } = useProfile()
+  const { profile, updateProfile, isNewUser, loading: profileLoading, error: profileError } = useProfile()
   const navigate = useNavigate()
 
   const [items, setItems]         = useState([])
@@ -17,20 +17,21 @@ export default function Feed() {
   const [totalPages, setTotal]    = useState(1)
   const [loading, setLoading]     = useState(false)
   const [mode, setMode]           = useState('Both')
-  const [compareItem, setCompare] = useState(null)
+  const [error, setError]         = useState(null)
 
   const feedDepth = profile?.feedDepth || 0
   const hitLimit  = feedDepth >= FREE_PAGE_LIMIT
 
   // Redirect new users to onboarding
   useEffect(() => {
-    if (isNewUser) navigate('/onboard')
-  }, [isNewUser])
+    if (!profileLoading && isNewUser) navigate('/onboard')
+  }, [isNewUser, profileLoading, navigate])
 
   // Load feed
   const loadFeed = useCallback(async (p = 1, reset = false) => {
-    if (!profile || loading || (hitLimit && p > 1)) return
+    if (!profile || (hitLimit && p > 1)) return
     setLoading(true)
+    setError(null)
 
     try {
       const modeMap = { Both: 'both', Retail: 'retail', Resale: 'resale' }
@@ -50,15 +51,26 @@ export default function Feed() {
       }
     } catch (err) {
       console.error('Feed error:', err)
+      setError(err.message || 'Could not load feed')
     } finally {
       setLoading(false)
     }
-  }, [profile, mode, loading, hitLimit, feedDepth])
+  }, [profile, mode, hitLimit, feedDepth, updateProfile])
 
-  // Initial load
+  const tasteKey = profile
+    ? JSON.stringify({
+        aesthetics: profile.aesthetics,
+        priceRange: profile.priceRange,
+        brands: profile.brands,
+        mode,
+      })
+    : ''
+
+  // Reload when taste or mode changes — not when feedDepth increments
   useEffect(() => {
-    if (profile) loadFeed(1, true)
-  }, [profile, mode])
+    if (!profileLoading && profile && !isNewUser) loadFeed(1, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasteKey, profileLoading, isNewUser])
 
   function handleModeChange(m) {
     setMode(m)
@@ -109,14 +121,16 @@ export default function Feed() {
             />
           ))}
         </div>
-      ) : loading ? (
+      ) : loading || profileLoading ? (
         <div className={styles.loadingState}>
           <div className="spinner" />
           <p className="muted">Pulling your feed...</p>
         </div>
       ) : (
         <div className={styles.emptyState}>
-          <p className="muted">No results. Try adjusting your profile.</p>
+          <p className="muted">
+            {error || profileError || 'No results. Try adjusting your profile.'}
+          </p>
         </div>
       )}
 

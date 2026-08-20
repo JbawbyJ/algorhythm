@@ -66,7 +66,7 @@ export function buildSearchQueriesForProfile(profile) {
     const brands = getBrandsByAesthetic(aesthetic)
     for (const brand of brands) {
       // Skip blocked brands
-      if (profile.brands.blocked.some(b =>
+      if ((profile.brands?.blocked || []).some(b =>
         b.toLowerCase() === brand.name.toLowerCase()
       )) continue
 
@@ -75,7 +75,7 @@ export function buildSearchQueriesForProfile(profile) {
   }
 
   // Add explicit liked brands not already covered
-  for (const brand of profile.brands.liked) {
+  for (const brand of (profile.brands?.liked || [])) {
     if (!queries.some(q => q.brand === brand)) {
       queries.push({ query: brand, aesthetic: 'liked', brand })
     }

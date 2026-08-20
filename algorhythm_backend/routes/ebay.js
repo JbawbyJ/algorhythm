@@ -1,6 +1,7 @@
 import { Router } from 'express'
-import { searchEbay, getEbayItem } from '../services/ebayService.js'
+import { searchEbay, getEbayItem, isEbayConfigured } from '../services/ebayService.js'
 import { normalizeEbayItem } from '../utils/normalizer.js'
+import { searchLocalCatalog } from '../data/localCatalog.js'
 
 const router = Router()
 
@@ -21,22 +22,47 @@ router.get('/search', async (req, res, next) => {
       sort     = 'newlyListed'
     } = req.query
 
-    const raw = await searchEbay({
-      query:    q,
-      limit:    parseInt(limit),
-      offset:   parseInt(offset),
-      condition,
-      priceMin: priceMin ? parseFloat(priceMin) : null,
-      priceMax: priceMax ? parseFloat(priceMax) : null,
-      sort
-    })
+    let items = []
+    let total = 0
+    let source = 'local'
 
-    const items = (raw.itemSummaries || []).map(normalizeEbayItem)
+    if (isEbayConfigured()) {
+      try {
+        const raw = await searchEbay({
+          query:    q,
+          limit:    parseInt(limit),
+          offset:   parseInt(offset),
+          condition,
+          priceMin: priceMin ? parseFloat(priceMin) : null,
+          priceMax: priceMax ? parseFloat(priceMax) : null,
+          sort
+        })
+        items = (raw.itemSummaries || []).map(normalizeEbayItem)
+        total = raw.total || items.length
+        if (items.length) source = 'ebay'
+      } catch (err) {
+        console.warn('eBay search unavailable, falling back to local catalog —', err.message)
+      }
+    }
+
+    if (!items.length) {
+      const local = searchLocalCatalog({
+        query:    q,
+        limit:    parseInt(limit),
+        offset:   parseInt(offset),
+        priceMin: priceMin ? parseFloat(priceMin) : null,
+        priceMax: priceMax ? parseFloat(priceMax) : null,
+      })
+      items = local.items
+      total = local.total
+      source = 'local'
+    }
 
     res.json({
-      total:  raw.total || 0,
-      offset: raw.offset || 0,
-      limit:  raw.limit || 20,
+      total,
+      offset: parseInt(offset) || 0,
+      limit:  parseInt(limit) || 20,
+      source,
       items
     })
 

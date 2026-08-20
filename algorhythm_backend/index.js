@@ -4,9 +4,11 @@ import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
 import 'dotenv/config'
 
-import feedRouter   from './routes/feed.js'
+import feedRouter    from './routes/feed.js'
 import profileRouter from './routes/profile.js'
-import ebayRouter   from './routes/ebay.js'
+import ebayRouter    from './routes/ebay.js'
+import compareRouter from './routes/compare.js'
+import { isEbayConfigured } from './services/ebayService.js'
 
 const app  = express()
 const PORT = process.env.PORT || 3001
@@ -28,13 +30,15 @@ app.use('/api/', limiter)
 app.use('/api/feed',    feedRouter)
 app.use('/api/profile', profileRouter)
 app.use('/api/ebay',    ebayRouter)
+app.use('/api/compare', compareRouter)
 
 // ── Health check ──
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     env: process.env.NODE_ENV,
-    ebay: process.env.EBAY_CLIENT_ID !== 'your_ebay_client_id_here' ? 'configured' : 'not configured',
+    ebay: isEbayConfigured() ? 'configured' : 'not configured',
+    catalog: 'local',
     timestamp: new Date().toISOString()
   })
 })
@@ -52,6 +56,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`\n🎛  Algorhythm server running on http://localhost:${PORT}`)
-  console.log(`📡  eBay: ${process.env.EBAY_CLIENT_ID !== 'your_ebay_client_id_here' ? '✅ configured' : '⚠️  not configured — add credentials to .env'}`)
+  console.log(`📡  eBay: ${isEbayConfigured() ? '✅ configured' : '⚠️  not configured — local catalog only'}`)
   console.log(`🌿  ENV: ${process.env.NODE_ENV}\n`)
 })
