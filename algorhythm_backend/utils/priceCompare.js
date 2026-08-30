@@ -38,7 +38,6 @@ function sameBrand(a, b) {
  */
 export function classifyMatch(source, candidate) {
   if (source.id && candidate.id === source.id) return null
-  if (!sameBrand(source, candidate)) return null
 
   const srcTokens = tokens(source.name)
   const candTokens = tokens(candidate.name)
@@ -47,6 +46,10 @@ export function classifyMatch(source, candidate) {
   const candColors = colorsOf(candidate.name)
   const colorOverlap = [...srcColors].some(c => candColors.has(c))
   const bothHaveColor = srcColors.size > 0 && candColors.size > 0
+  const brandsMatch = sameBrand(source, candidate)
+
+  // Cross-brand SKU-identical pieces still group at exact; weaker tiers stay same-brand.
+  if (!brandsMatch && ratio < 0.72) return null
 
   let tier
   let similarity

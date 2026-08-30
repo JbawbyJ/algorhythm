@@ -128,9 +128,18 @@ export default function Feed() {
         </div>
       ) : (
         <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>Nothing matches this signal.</p>
           <p className="muted">
-            {error || profileError || 'No results. Try adjusting your profile.'}
+            {error || profileError || 'Widen budget, drop a blocked brand, or recalibrate taste.'}
           </p>
+          <div className={styles.emptyActions}>
+            <button className="btn btn-primary" onClick={() => navigate('/profile')}>
+              Edit profile
+            </button>
+            <button className="btn btn-ghost" onClick={() => navigate('/onboard')}>
+              Recalibrate
+            </button>
+          </div>
         </div>
       )}
 

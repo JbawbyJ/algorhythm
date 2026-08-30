@@ -73,3 +73,22 @@ test('compareQuery finds a source from free text', () => {
   assert.ok(result)
   assert.match(result.source.brand, /Nemen/i)
 })
+
+test('compare groups SKU-identical items across brands', () => {
+  const source = {
+    id: 'ssense:j1a',
+    brand: 'Acronym',
+    name: 'J1A-GT Interops Jacket Black',
+    price: 1240,
+  }
+  const pool = [
+    source,
+    { id: 'grailed:j1a', brand: 'Acronym Archive', name: 'J1A-GT Interops Jacket Black', price: 900 },
+    { id: 'ebay:other', brand: 'Nike', name: 'Dunk Low', price: 120 },
+  ]
+  const result = compareListing(source, pool, 10)
+  const exact = result.grouped.exactMatch
+  assert.ok(exact.some(i => i.id === 'grailed:j1a'))
+  assert.ok(!exact.some(i => i.id === 'ebay:other'))
+})
+

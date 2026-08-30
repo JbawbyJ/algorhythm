@@ -1,9 +1,10 @@
 import { Router } from 'express'
-import { searchEbay, isEbayConfigured } from '../services/ebayService.js'
-import { normalizeEbayItem } from '../utils/normalizer.js'
 import { rankListingsForProfile, DEFAULT_PROFILE } from '../utils/tasteScorer.js'
 import { buildSearchQueriesForProfile } from '../data/brands.js'
+import { expandQueries } from '../utils/queryExpand.js'
 import { getLocalCatalog } from '../data/localCatalog.js'
+import { listingIndex } from '../services/listingIndex.js'
+import { searchAll, liveConfigured, allowLocalCatalog } from '../services/sourceBroker.js'
 
 const router = Router()
 
@@ -28,56 +29,35 @@ router.post('/', async (req, res, next) => {
       pageSize = 20
     } = req.body
 
-    // Build queries from profile aesthetics + liked brands
     const queries = buildSearchQueriesForProfile(profile)
+    const activeQueries = expandQueries(
+      queries.length > 0
+        ? queries
+        : [
+            { query: 'Acronym jacket', aesthetic: 'Gorpcore', brand: 'Acronym' },
+            { query: 'Rick Owens', aesthetic: 'Dark Luxury', brand: 'Rick Owens' },
+            { query: "Arc'teryx Veilance", aesthetic: 'Gorpcore', brand: "Arc'teryx Veilance" },
+          ]
+    )
 
-    // If no profile yet, use default gorpcore/dark luxury queries
-    const activeQueries = queries.length > 0
-      ? queries.slice(0, 5)  // cap at 5 queries per feed load to stay polite on API
-      : [
-          { query: 'Acronym jacket', aesthetic: 'Gorpcore' },
-          { query: 'Rick Owens', aesthetic: 'Dark Luxury' },
-          { query: "Arc'teryx Veilance", aesthetic: 'Gorpcore' },
-        ]
+    const sources = []
+    const useLocal = allowLocalCatalog()
 
-    // Fetch from eBay in parallel when credentials are present.
-    // Always merge the local catalog so the core loop works offline.
-    const allItems = [...getLocalCatalog()]
-    const sources = ['local']
-
-    if (isEbayConfigured()) {
-      const ebayResults = await Promise.allSettled(
-        activeQueries.map(q =>
-          searchEbay({
-            query:    q.query,
-            limit:    10,
-            priceMin: profile.priceRange?.min || null,
-            priceMax: profile.priceRange?.max || null,
-            condition: mapConditionToEbay(profile.conditionTolerance)
-          })
-        )
-      )
-
-      let ebayCount = 0
-      for (const result of ebayResults) {
-        if (result.status === 'fulfilled' && result.value.itemSummaries) {
-          allItems.push(...result.value.itemSummaries.map(normalizeEbayItem))
-          ebayCount += result.value.itemSummaries.length
-        }
-      }
-      if (ebayCount > 0) sources.push('ebay')
+    if (useLocal) {
+      listingIndex.upsert(getLocalCatalog())
+      sources.push('local')
+    } else {
+      listingIndex.dropSource('local')
     }
 
-    // Deduplicate by id
-    const seen = new Set()
-    const unique = allItems.filter(item => {
-      if (seen.has(item.id)) return false
-      seen.add(item.id)
-      return true
-    })
+    if (liveConfigured()) {
+      const result = await searchAll(activeQueries, { mode: profile.mode || 'both' })
+      listingIndex.upsert(result.items)
+      sources.push(...result.sources)
+    }
 
-    // Score + rank
-    const ranked = rankListingsForProfile(unique, profile)
+    const unique = listingIndex.candidates()
+    const ranked = rankListingsForProfile(unique, profile, activeQueries)
 
     // Paginate
     const start = (page - 1) * pageSize
@@ -123,16 +103,5 @@ router.post('/swipe', async (req, res, next) => {
     next(err)
   }
 })
-
-// Map our condition tolerance to eBay condition filter
-function mapConditionToEbay(tolerance) {
-  const map = {
-    new_only:  'NEW',
-    like_new:  'USED',
-    good:      'USED',
-    any:       null
-  }
-  return map[tolerance] ?? null
-}
 
 export default router

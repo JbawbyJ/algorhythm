@@ -9,6 +9,9 @@
  * a vector similarity calculation against embeddings.
  */
 
+import { scoreBm25 } from './bm25.js'
+import { SOURCE_QUALITY } from './sourceQuality.js'
+
 /**
  * Default taste profile shape.
  * This is what gets stored per user in Supabase.
@@ -22,6 +25,7 @@ export const DEFAULT_PROFILE = {
   priceRange:     { min: 0, max: 9999 },
   conditionTolerance: 'any',   // 'new_only' | 'like_new' | 'good' | 'any'
   mode:           'both',       // 'retail' | 'resale' | 'both'
+  size:           'M',
   feedDepth:      0,            // pages viewed today (for metering)
   // Taste vector — populated from swipe calibration
   vector: {
@@ -132,21 +136,41 @@ export function scoreListingForProfile(listing, profile = DEFAULT_PROFILE) {
  * Filters out blocked brands and mode mismatches.
  * Returns listings sorted by score descending.
  */
-export function rankListingsForProfile(listings, profile = DEFAULT_PROFILE) {
+function recencyNorm(listedAt) {
+  if (!listedAt) return 0
+  const t = Date.parse(listedAt)
+  if (!Number.isFinite(t)) return 0
+  const ageH = (Date.now() - t) / 3_600_000
+  if (ageH <= 24) return 100
+  if (ageH <= 24 * 7) return 55
+  if (ageH <= 24 * 30) return 25
+  return 0
+}
+
+export function rankListingsForProfile(listings, profile = DEFAULT_PROFILE, queries = []) {
   const blocked = (profile.brands?.blocked || []).map(b => b.toLowerCase())
 
-  return listings
-    // Filter by mode
+  const filtered = listings
     .filter(l => {
       if (profile.mode === 'retail')  return l.isRetail
       if (profile.mode === 'resale')  return l.isResale
       return true
     })
-    // Filter out hard-blocked brands
     .filter(l => !blocked.some(b => (l.brand || '').toLowerCase().includes(b)))
-    // Score each
-    .map(l => ({ ...l, matchScore: scoreListingForProfile(l, profile).score }))
-    // Sort by score
+
+  const withBm25 = scoreBm25(filtered, queries)
+
+  return withBm25
+    .map(l => {
+      const taste = scoreListingForProfile(l, profile).score
+      const bm25 = Math.round((l.bm25 || 0) * 100)
+      const recency = recencyNorm(l.listedAt)
+      const source = Math.round((SOURCE_QUALITY[l.source] ?? 0.5) * 100)
+      const matchScore = Math.round(
+        0.75 * taste + 0.10 * bm25 + 0.10 * recency + 0.05 * source
+      )
+      return { ...l, matchScore: Math.min(100, matchScore) }
+    })
     .sort((a, b) => b.matchScore - a.matchScore)
 }
 

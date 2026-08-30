@@ -5,6 +5,7 @@
  */
 
 import axios from 'axios'
+import { cacheGet, cacheKey, cacheSet, parseRetryAfter } from './httpCache.js'
 
 // ── eBay endpoints ──
 const ENDPOINTS = {
@@ -12,11 +13,21 @@ const ENDPOINTS = {
   PRODUCTION: { auth: 'https://api.ebay.com/identity/v1/oauth2/token',            browse: 'https://api.ebay.com/buy/browse/v1' }
 }
 
-const ENV    = process.env.EBAY_ENV || 'SANDBOX'
-const BASE   = ENDPOINTS[ENV]
+export function ebayEnv() {
+  const v = String(process.env.EBAY_ENV || 'SANDBOX').toUpperCase()
+  return v === 'PRODUCTION' ? 'PRODUCTION' : 'SANDBOX'
+}
+
+export function ebayBases() {
+  return ENDPOINTS[ebayEnv()]
+}
 
 // ── Token cache — eBay tokens last 2 hours, we cache them ──
 let tokenCache = { token: null, expiresAt: 0 }
+
+export function resetEbayTokenCache() {
+  tokenCache = { token: null, expiresAt: 0 }
+}
 
 export function isEbayConfigured() {
   const id = process.env.EBAY_CLIENT_ID
@@ -49,8 +60,9 @@ export async function getEbayToken() {
   ).toString('base64')
 
   try {
+    const bases = ebayBases()
     const res = await axios.post(
-      BASE.auth,
+      bases.auth,
       'grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope',
       {
         headers: {
@@ -65,7 +77,7 @@ export async function getEbayToken() {
       expiresAt: now + res.data.expires_in * 1000
     }
 
-    console.log(`✅ eBay token refreshed (${ENV}) — expires in ${Math.round(res.data.expires_in / 60)} min`)
+    console.log(`✅ eBay token refreshed (${ebayEnv()}) — expires in ${Math.round(res.data.expires_in / 60)} min`)
     return tokenCache.token
 
   } catch (err) {
@@ -117,19 +129,38 @@ export async function searchEbay({
     ...(filters.length && { filter: filters.join(',') })
   }
 
+  const bases = ebayBases()
+  const url = `${bases.browse}/item_summary/search?${new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
+  ).toString()}`
+  const key = cacheKey('GET', url)
+  const cached = cacheGet(key)
+  if (cached) return cached
+
   try {
-    const res = await axios.get(`${BASE.browse}/item_summary/search`, {
+    const res = await axios.get(`${bases.browse}/item_summary/search`, {
       headers: {
         'Authorization':       `Bearer ${token}`,
         'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
         'Content-Type':        'application/json'
       },
-      params
+      params,
+      validateStatus: s => s < 500
     })
 
+    if (res.status === 429) {
+      cacheSet(key, null, 1, { status: 429 })
+      const err = new Error('eBay search 429')
+      err.status = 429
+      err.retryAfter = parseRetryAfter(res.headers?.['retry-after'])
+      throw err
+    }
+
+    cacheSet(key, res.data, 3 * 60_000, { status: res.status })
     return res.data
 
   } catch (err) {
+    if (err.status === 429) throw err
     console.error('❌ eBay search error:', err.response?.data || err.message)
     throw new Error(`eBay search failed: ${err.response?.data?.errors?.[0]?.message || err.message}`)
   }
@@ -142,7 +173,7 @@ export async function getEbayItem(itemId) {
   const token = await getEbayToken()
 
   try {
-    const res = await axios.get(`${BASE.browse}/item/${itemId}`, {
+    const res = await axios.get(`${ebayBases().browse}/item/${itemId}`, {
       headers: {
         'Authorization':           `Bearer ${token}`,
         'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'

@@ -9,7 +9,7 @@
  * Standard ListingSchema:
  * {
  *   id:           string    — source:itemId (e.g. "ebay:123456")
- *   source:       string    — 'ebay' | 'yahoo_jp' | 'ssense' | 'grailed'
+ *   source:       string    — 'ebay' | 'yahoo_jp' | 'ssense' | 'grailed' | 'lukes' | 'hbx'
  *   brand:        string    — normalized brand name
  *   name:         string    — item title/name
  *   price:        number    — price in USD
@@ -21,9 +21,14 @@
  *   aesthetics:   string[]  — detected aesthetic tags
  *   isResale:     boolean
  *   isRetail:     boolean
+ *   listedAt:     string|null
+ *   endsAt:       string|null
+ *   availability: string|null
  *   raw:          object    — original response (for debugging)
  * }
  */
+
+import { toUsd } from '../services/fx.js'
 
 // ── Brand normalization map ──
 // Handles typos, alternate spellings, case differences
@@ -145,6 +150,9 @@ export function normalizeEbayItem(item) {
     aesthetics:   detectAesthetics(item.title, brand),
     isResale:     true,
     isRetail:     false,
+    listedAt:     item.itemCreationDate || item.listingDate || null,
+    endsAt:       item.itemEndDate || null,
+    availability: item.availability || item.availabilityStatus || null,
     raw:          item
   }
 }
@@ -166,6 +174,85 @@ export function normalizeSsenseItem(item) {
     aesthetics:   detectAesthetics(item.name, brand),
     isResale:     false,
     isRetail:     true,
+    listedAt:     item.listedAt || item.published_at || null,
+    endsAt:       null,
+    availability: item.availability || 'in_stock',
+    raw:          item
+  }
+}
+
+export function normalizeLukesItem(product) {
+  const variant = (product.variants && product.variants[0]) || {}
+  const brand = normalizeBrand(product.vendor || '')
+  const name = product.title || ''
+  const price = parseFloat(variant.price || product.price || 0)
+  const image = product.images?.[0]?.src || product.image?.src
+  return {
+    id:           `lukes:${product.id || product.handle}`,
+    source:       'lukes',
+    source_label: "Luke's NYC",
+    brand,
+    name,
+    price,
+    currency:     'USD',
+    condition:    'good',
+    images:       image ? [image] : [],
+    url:          product.handle ? `https://lukes.store/products/${product.handle}` : (product.url || ''),
+    aesthetics:   detectAesthetics(name, brand),
+    isResale:     true,
+    isRetail:     false,
+    listedAt:     product.published_at || product.created_at || null,
+    endsAt:       null,
+    availability: variant.available === false ? 'sold' : 'in_stock',
+    raw:          product
+  }
+}
+
+export function normalizeHbxItem(item) {
+  const brand = normalizeBrand(item.brand || item.designer || '')
+  const name = item.name || item.title || ''
+  const archive = Boolean(item.archive || item.isArchive || /archive/i.test(item.collection || ''))
+  return {
+    id:           `hbx:${item.sku || item.id || name}`,
+    source:       'hbx',
+    source_label: 'HBX',
+    brand,
+    name,
+    price:        parseFloat(item.price || 0),
+    currency:     item.currency || 'USD',
+    condition:    archive ? 'good' : 'new',
+    images:       item.images || (item.imageUrl ? [item.imageUrl] : []),
+    url:          item.url || item.productUrl || '',
+    aesthetics:   detectAesthetics(name, brand),
+    isResale:     archive,
+    isRetail:     !archive,
+    listedAt:     item.listedAt || null,
+    endsAt:       null,
+    availability: item.availability || null,
+    raw:          item
+  }
+}
+
+export function normalizeGrailedItem(item) {
+  const brand = normalizeBrand(item.brand || extractBrandFromTitle(item.name || item.title || ''))
+  const name = item.name || item.title || ''
+  return {
+    id:           `grailed:${item.id || item.url || name}`,
+    source:       'grailed',
+    source_label: 'Grailed',
+    brand,
+    name,
+    price:        parseFloat(item.price || 0),
+    currency:     item.currency || 'USD',
+    condition:    normalizeCondition(item.condition || 'good'),
+    images:       item.images || [],
+    url:          item.url || '',
+    aesthetics:   detectAesthetics(name, brand),
+    isResale:     true,
+    isRetail:     false,
+    listedAt:     item.listedAt || null,
+    endsAt:       null,
+    availability: item.availability || null,
     raw:          item
   }
 }
@@ -179,14 +266,20 @@ export function normalizeYahooJpItem(item) {
     source_label: 'Yahoo Japan',
     brand,
     name:         item.title || '',
-    price:        parseFloat(item.currentPrice?.value || item.price || 0),
-    currency:     item.currentPrice?.currency || 'JPY',
+    price:        toUsd(
+      parseFloat(item.currentPrice?.value || item.price || 0),
+      item.currentPrice?.currency || item.currency || 'JPY'
+    ),
+    currency:     'USD',
     condition:    normalizeCondition(item.condition || ''),
     images:       item.images || (item.imageUrl ? [item.imageUrl] : []),
     url:          item.aucviewUrl || item.url || '',
     aesthetics:   detectAesthetics(item.title, brand),
     isResale:     true,
     isRetail:     false,
+    listedAt:     item.listedAt || null,
+    endsAt:       item.endTime || item.endsAt || null,
+    availability: item.availability || null,
     raw:          item
   }
 }
@@ -210,6 +303,9 @@ export function normalizeBatch(items, source) {
     ebay:     normalizeEbayItem,
     ssense:   normalizeSsenseItem,
     yahoo_jp: normalizeYahooJpItem,
+    lukes:    normalizeLukesItem,
+    hbx:      normalizeHbxItem,
+    grailed:  normalizeGrailedItem,
   }
   const fn = normalizers[source]
   if (!fn) throw new Error(`Unknown source: ${source}`)

@@ -8,7 +8,8 @@ import feedRouter    from './routes/feed.js'
 import profileRouter from './routes/profile.js'
 import ebayRouter    from './routes/ebay.js'
 import compareRouter from './routes/compare.js'
-import { isEbayConfigured } from './services/ebayService.js'
+import { ebayEnv, isEbayConfigured } from './services/ebayService.js'
+import { configuredSourceIds, liveConfigured, allowLocalCatalog } from './services/sourceBroker.js'
 
 const app  = express()
 const PORT = process.env.PORT || 3001
@@ -38,7 +39,10 @@ app.get('/health', (req, res) => {
     status: 'ok',
     env: process.env.NODE_ENV,
     ebay: isEbayConfigured() ? 'configured' : 'not configured',
-    catalog: 'local',
+    ebay_env: ebayEnv(),
+    live: liveConfigured(),
+    sources: configuredSourceIds(),
+    local_catalog: allowLocalCatalog(),
     timestamp: new Date().toISOString()
   })
 })
@@ -56,6 +60,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`\n🎛  Algorhythm server running on http://localhost:${PORT}`)
-  console.log(`📡  eBay: ${isEbayConfigured() ? '✅ configured' : '⚠️  not configured — local catalog only'}`)
+  console.log(`📡  live sources: ${configuredSourceIds().join(', ') || 'none — local catalog fallback'}`)
   console.log(`🌿  ENV: ${process.env.NODE_ENV}\n`)
 })

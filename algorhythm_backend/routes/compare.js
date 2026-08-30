@@ -3,6 +3,8 @@ import { getLocalCatalog, searchLocalCatalog } from '../data/localCatalog.js'
 import { searchEbay, isEbayConfigured } from '../services/ebayService.js'
 import { normalizeEbayItem } from '../utils/normalizer.js'
 import { compareListing, compareQuery } from '../utils/priceCompare.js'
+import { listingIndex } from '../services/listingIndex.js'
+import { allowLocalCatalog } from '../services/sourceBroker.js'
 
 const router = Router()
 
@@ -30,7 +32,9 @@ router.post('/', async (req, res, next) => {
 
     const query = [listing.brand, listing.name].filter(Boolean).join(' ')
     const remote = await ebayCandidates(query, 10)
-    const candidates = [...getLocalCatalog(), ...remote]
+    const indexed = listingIndex.candidates()
+    const local = allowLocalCatalog() ? getLocalCatalog() : []
+    const candidates = [...indexed, ...local, ...remote]
     const result = compareListing(listing, candidates, maxResults)
     res.json(result)
   } catch (err) {
@@ -50,9 +54,14 @@ router.post('/search', async (req, res, next) => {
     }
 
     const remote = await ebayCandidates(query, 10)
-    const local = searchLocalCatalog({ query, limit: 50 }).items
-    // If the query is too narrow, still allow brand-level local matches via full catalog
-    const pool = [...(local.length ? local : getLocalCatalog()), ...remote]
+    const localHits = allowLocalCatalog() ? searchLocalCatalog({ query, limit: 50 }).items : []
+    const local = allowLocalCatalog() ? getLocalCatalog() : []
+    const indexed = listingIndex.candidates()
+    const pool = [
+      ...indexed,
+      ...(localHits.length ? localHits : local),
+      ...remote,
+    ]
     const result = compareQuery(query, pool, maxResults)
 
     if (!result) {

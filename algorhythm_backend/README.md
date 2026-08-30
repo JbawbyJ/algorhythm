@@ -7,8 +7,9 @@ Taste-driven fashion discovery engine. Local dev server.
 ## Stack
 
 - **Node.js** (v18+) + Express
-- **eBay Browse API** — primary resale data source
-- **Supabase** — auth + user profiles (coming next)
+- **eBay Browse API** — primary resale data source (`EBAY_ENV=PRODUCTION` for live)
+- **Luke’s** — optional Shopify `products.json` when `LUKES_ENABLED=true`
+- **Profiles** — JSON file store (swap for Supabase later)
 
 ---
 
@@ -55,11 +56,23 @@ curl http://localhost:3001/health
 # Test eBay search (once credentials are set)
 curl "http://localhost:3001/api/ebay/search?q=Acronym+jacket&limit=5"
 
-# Ranked feed (uses the local catalog; eBay is merged when configured)
+# Ranked feed (live sources first; local catalog only if none configured or ALGORHYTHM_ALLOW_LOCAL=1)
 curl -X POST http://localhost:3001/api/feed \
   -H "Content-Type: application/json" \
   -d '{"profile":{"aesthetics":["Gorpcore"],"priceRange":{"min":0,"max":500},"mode":"both"}}'
 ```
+
+### Live-first env
+
+| Variable | Role |
+|----------|------|
+| `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` | Browse API. Set `EBAY_ENV=PRODUCTION` for `api.ebay.com` (not sandbox). |
+| `LUKES_ENABLED` | Official Luke’s `collections/all/products.json` |
+| `BROWSER_WORKER_URL` | Optional Harness worker for remaining HTML sources |
+| `ALGORHYTHM_ALLOW_LOCAL` | `1` keeps the local catalog even when a live source is configured |
+| `ALGORHYTHM_PROFILE_PATH` | JSON profile store (default `data/profiles.json`, gitignored) |
+
+No live key → local catalog fallback. Source failures are isolated; one adapter cannot fail the feed.
 
 ---
 
@@ -94,7 +107,10 @@ algorhythm_backend/
 │   ├── compare.js        # Price compare
 │   └── profile.js        # Taste profile management
 ├── services/
-│   └── ebayService.js    # eBay OAuth + Browse API calls
+│   ├── ebayService.js    # eBay OAuth + Browse API (SANDBOX | PRODUCTION)
+│   ├── lukesService.js   # Luke’s products.json
+│   ├── profileStore.js   # JSON profile persistence
+│   └── sourceBroker.js   # live-first source selection
 ├── utils/
 │   ├── normalizer.js     # Converts any source → standard schema
 │   ├── tasteScorer.js    # Taste match scoring engine
@@ -108,7 +124,8 @@ algorhythm_backend/
 
 ## Next Steps (in order)
 
-- [ ] Get eBay credentials, test live search (optional; local catalog already ranks)
-- [ ] Add Supabase for persistent profiles + auth
+- [x] Persist taste profiles to a local JSON store
+- [ ] Get eBay **Production** credentials (`EBAY_ENV=PRODUCTION`) and set `LUKES_ENABLED=true`
+- [ ] Add Supabase for auth (file store already persists profiles)
 - [ ] Add Yahoo Japan API
 - [ ] Add SSENSE affiliate feed

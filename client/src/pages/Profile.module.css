@@ -60,13 +60,58 @@
   gap: 6px;
 }
 
-.chip {
+.chip,
+.chipBtn {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 6px 12px;
   border: 1px solid var(--gold-dim);
   color: var(--gold);
+  background: transparent;
+}
+
+.chipBtn { cursor: pointer; }
+.chipBtn:hover { border-color: var(--ash); color: var(--paper); }
+.chipOn {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(196, 169, 106, 0.08);
+}
+
+.budgetGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+}
+
+.budgetBtn {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  padding: 10px 6px;
+  border: 1px solid var(--border-2);
+  color: var(--ghost);
+  background: transparent;
+  cursor: pointer;
+}
+.budgetOn {
+  border-color: var(--gold-dim);
+  color: var(--gold);
+}
+
+.blockRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.editorInput {
+  flex: 1;
+  background: var(--ink);
+  border: 1px solid var(--border-2);
+  color: var(--paper);
+  padding: 8px 10px;
+  font-size: 13px;
 }
 
 .session {

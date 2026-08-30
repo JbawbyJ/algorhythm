@@ -6,6 +6,10 @@ node_modules/
 .env.local
 .env.*.local
 
+# Persisted taste profiles (local JSON store)
+algorhythm_backend/data/profiles.json
+algorhythm_backend/data/profiles.json.tmp
+
 # Build output
 dist/
 build/

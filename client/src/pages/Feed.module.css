@@ -69,6 +69,19 @@
   gap: 16px;
   padding: 80px 0;
   color: var(--ghost);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  color: var(--paper);
+}
+
+.emptyActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 /* ── Meter ── */

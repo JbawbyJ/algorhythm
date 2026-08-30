@@ -34,6 +34,9 @@ function listing({
     aesthetics,
     isResale: !isRetail,
     isRetail,
+    listedAt: null,
+    endsAt: null,
+    availability: 'in_stock',
   }
 }
 

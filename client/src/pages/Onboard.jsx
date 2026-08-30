@@ -17,6 +17,7 @@ const BUDGET_RANGES = [
 ]
 
 const MODES = ['retail', 'resale', 'both']
+const SIZES = ['XS', 'S', 'M', 'L', 'XL']
 
 // Pool of calibration queries — real listings pulled from these
 const CALIBRATION_QUERIES = [
@@ -52,6 +53,7 @@ export default function Onboard() {
   const [aesthetics, setAesthetics] = useState([])
   const [budget, setBudget]         = useState(null)
   const [mode, setMode]             = useState('both')
+  const [size, setSize]             = useState('M')
   const [swipeItems, setSwipeItems] = useState([])
   const [swipeIndex, setSwipeIndex] = useState(0)
   const [loadingSwipes, setLoading] = useState(false)
@@ -114,7 +116,7 @@ export default function Onboard() {
   }
 
   async function finalize() {
-    await onboard({ aesthetics, budgetRange: budget, mode })
+    await onboard({ aesthetics, budgetRange: budget, size, mode })
     navigate('/feed')
   }
 
@@ -159,6 +161,19 @@ export default function Onboard() {
                   className={`${styles.budgetBtn} ${budget?.label === b.label ? styles.budgetOn : ''}`}
                   onClick={() => setBudget(b)}
                 >{b.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.section}>
+            <p className={styles.sectionLabel}>Size</p>
+            <div className={styles.modeRow}>
+              {SIZES.map(s => (
+                <button
+                  key={s}
+                  className={`${styles.modeBtn} ${size === s ? styles.modeOn : ''}`}
+                  onClick={() => setSize(s)}
+                >{s}</button>
               ))}
             </div>
           </div>
